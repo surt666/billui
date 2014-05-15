@@ -47,29 +47,29 @@
 (defn product-line [product owner]
   (reify
     om/IRenderState
-    (render-state [_ state]
+    (render-state [this {:keys [edit]}]
       (dom/li nil
               (dom/a #js {:href "#"
-                          :onClick (fn [e] (put! menu-choice (:type @menupoint)))} (:productid product)) (dom/span nil (:name product))))))
+                          :onClick (fn [e] (put! edit :edit))} (:productid product)) (dom/span nil (:name product))))))
 
 (defn products-view [app owner]
   (reify
     om/IRenderState
-    (render-state [this {:keys [menu-choice]}]
+    (render-state [this {:keys [new]}]
       (dom/div #js {:id "view" :className "view"}
                (dom/div #js {:id "find" :className "find"}
                         (dom/label nil "Find")
                         (dom/input #js {:type "text" :ref "findproduct"})
-                        (dom/button #js {:onClick (fn [e] (put! menu-choice (:type @menupoint)))} "New"))
+                        (dom/button #js {:onClick (fn [e] (put! new :newproduct))} "New"))
                (apply dom/ul nil
-                       (om/build-all product-line (find-all-products) {:init-state {:menu-choice menu-choice}}))))))
+                       (om/build-all product-line (find-all-products) {:init-state {:new new}}))))))
 
-(defn product-view [app owner]
+(defn new-product-view [app owner]
   (reify
     om/IRenderState
-    (render-state [this {:keys [menu-choice]}]
+    (render-state [this {:keys [new]}]
       (dom/div #js {:id "view" :className "view"}
-        (dom/h2 nil "Products")
+        (dom/h2 nil "New product")
         (dom/label nil "Product id")
         (dom/input #js {:type "text" :ref "productid"})
         (dom/label nil "Name")
@@ -96,7 +96,7 @@
 (defn customer-view [app owner]
   (reify
     om/IRenderState
-    (render-state [this {:keys [menu-choice]}]
+    (render-state [this {:keys [new]}]
       (dom/div #js {:id "view" :className "view"}
                (dom/h2 nil "Customers")
                (dom/label nil "Customer id")
@@ -127,7 +127,7 @@
 (defn accounts-view [app owner]
   (reify
     om/IRenderState
-    (render-state [this {:keys [menu-choice]}]
+    (render-state [this {:keys [new]}]
       (dom/div #js {:id "view" :className "view"}
         (dom/h2 nil "Accounts")
         (dom/label nil "First Name")
@@ -144,7 +144,7 @@
 (defn services-view [app owner]
   (reify
     om/IRenderState
-    (render-state [this {:keys [menu-choice]}]
+    (render-state [this {:keys [new]}]
       (dom/div #js {:id "view" :className "view"}
         (dom/h2 nil "Services")
         (dom/label nil "Service id")
@@ -159,7 +159,7 @@
 (defn pricebooks-view [app owner]
   (reify
     om/IRenderState
-    (render-state [this {:keys [menu-choice]}]
+    (render-state [this {:keys [new]}]
       (dom/div #js {:id "view" :className "view"}
         (dom/h2 nil "Pricebooks")
         (dom/label nil "Name")
@@ -167,14 +167,26 @@
 
 (defn view [app owner]
   (reify
+    om/IInitState
+    (init-state [_]
+      {:new (chan)})
+    om/IWillMount
+    (will-mount [_]
+      (let [new (om/get-state owner :new)]
+        (go (while true
+              (let [view (<! new)]
+                (.log js/console (str "log" view))
+                (om/transact! app :menu-point
+                              (fn [x] view)))))))
     om/IRenderState
-    (render-state [this {:keys [menu-choice]}]
+    (render-state [this {:keys [new]}]
       (cond
-       (= :products (:menu-point app)) (om/build products-view app)
-       (= :customers (:menu-point app)) (om/build customer-view app)
-       (= :accounts (:menu-point app)) (om/build accounts-view app)
-       (= :services (:menu-point app)) (om/build services-view app)
-       (= :pricebooks (:menu-point app)) (om/build pricebooks-view app)))))
+       (= :products (:menu-point app)) (om/build products-view app {:init-state {:new new}})
+       (= :newproduct (:menu-point app)) (om/build new-product-view app)
+       (= :customers (:menu-point app)) (om/build customer-view app {:init-state {:new new}})
+       (= :accounts (:menu-point app)) (om/build accounts-view app {:init-state {:new new}})
+       (= :services (:menu-point app)) (om/build services-view app {:init-state {:new new}})
+       (= :pricebooks (:menu-point app)) (om/build pricebooks-view app {:init-state {:new new}})))))
 
 (defn app-view [app owner]
   (reify
