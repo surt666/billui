@@ -33,7 +33,6 @@
         (apply dom/ul nil
           (om/build-all choose-view (:menu app) {:init-state {:menu-choice menu-choice}}))))))
 
-
 (defn product-keys []
   (list (dom/option #js {:id "1"} "test")
         (dom/option #js {:id "2"} "test2")
@@ -66,7 +65,7 @@
                (apply dom/ul nil
                        (om/build-all product-line (find-all-products) {:init-state {:viewchan viewchan}}))))))
 
-(defn new-product-view [app owner]
+(defn product-view [app owner]
   (reify
     om/IRenderState
     (render-state [this {:keys [viewchan]}]
@@ -75,7 +74,7 @@
         (dom/div #js {:id "view" :className "view"}
                 (dom/h2 nil "New product")
                 (dom/label nil "Product id")
-                (dom/input #js {:type "text" :ref "productid"})
+                (dom/input #js {:type "text" :ref "productid" :value product})
                 (dom/label nil "Name")
                 (dom/input #js {:type "text" :ref "name"})
                 (dom/label nil "Rollover date")
@@ -179,8 +178,8 @@
       (let [viewchan (om/get-state owner :viewchan)]
         (go (while true
               (let [view (<! viewchan)
-                    edit (when (map? view) (first (vals map)))
-                    view (if (map? view) (first (keys map)) view)]
+                    edit (when (map? view) (first (vals view)))
+                    view (if (map? view) (first (keys view)) view)]
                 (.log js/console (str "log " view edit))
                 (when edit
                   (om/transact! app :editproduct
@@ -191,8 +190,8 @@
     (render-state [this {:keys [viewchan]}]
       (cond
        (= :products (:menu-point app)) (om/build products-view app {:init-state {:viewchan viewchan}})
-       (= :newproduct (:menu-point app)) (om/build new-product-view app)
-       (= :editproduct (:menu-point app)) (om/build new-product-view app {:state (:editproduct app)})
+       (= :newproduct (:menu-point app)) (om/build product-view app)
+       (= :editproduct (:menu-point app)) (om/build product-view app)
        (= :customers (:menu-point app)) (om/build customer-view app {:init-state {:viewchan viewchan}})
        (= :accounts (:menu-point app)) (om/build accounts-view app {:init-state {:viewchan viewchan}})
        (= :services (:menu-point app)) (om/build services-view app {:init-state {:viewchan viewchan}})
