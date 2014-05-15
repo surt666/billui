@@ -1,4 +1,4 @@
-(ns billui.core
+(ns billui.ui
   (:require-macros [cljs.core.async.macros :refer [go]])
   (:require [om.core :as om :include-macros true]
             [om.dom :as dom :include-macros true]
@@ -13,7 +13,8 @@
                              {:type :accounts :name "Accounts"}
                              {:type :services :name "Services"}
                              {:type :pricebooks :name "Pricebooks"}]
-                      :menu-point :products}))
+                      :menu-point :products
+                      :editproduct nil}))
 
 (defn choose-view [menupoint owner]
   (reify
@@ -47,45 +48,48 @@
 (defn product-line [product owner]
   (reify
     om/IRenderState
-    (render-state [this {:keys [edit]}]
+    (render-state [this {:keys [viewchan]}]
       (dom/li nil
               (dom/a #js {:href "#"
-                          :onClick (fn [e] (put! edit :edit))} (:productid product)) (dom/span nil (:name product))))))
+                          :onClick (fn [e]
+                                     (put! viewchan {:editproduct (:productid product)}))} (:productid product)) (dom/span nil (:name product))))))
 
 (defn products-view [app owner]
   (reify
     om/IRenderState
-    (render-state [this {:keys [new]}]
+    (render-state [this {:keys [viewchan]}]
       (dom/div #js {:id "view" :className "view"}
                (dom/div #js {:id "find" :className "find"}
                         (dom/label nil "Find")
                         (dom/input #js {:type "text" :ref "findproduct"})
-                        (dom/button #js {:onClick (fn [e] (put! new :newproduct))} "New"))
+                        (dom/button #js {:onClick (fn [e] (put! viewchan :newproduct))} "New"))
                (apply dom/ul nil
-                       (om/build-all product-line (find-all-products) {:init-state {:new new}}))))))
+                       (om/build-all product-line (find-all-products) {:init-state {:viewchan viewchan}}))))))
 
 (defn new-product-view [app owner]
   (reify
     om/IRenderState
-    (render-state [this {:keys [new]}]
-      (dom/div #js {:id "view" :className "view"}
-        (dom/h2 nil "New product")
-        (dom/label nil "Product id")
-        (dom/input #js {:type "text" :ref "productid"})
-        (dom/label nil "Name")
-        (dom/input #js {:type "text" :ref "name"})
-        (dom/label nil "Rollover date")
-        (dom/input #js {:type "text" :ref "rolloverdate"})
-        (dom/label nil "Rollover product")
-        (dom/input #js {:type "text" :ref "rolloverproduct"})
-        (dom/label nil "Services")
-        (dom/select #js {:size "10" :ref "services"})
-        (dom/label nil "Usage")
-        (dom/select #js {:size "10" :ref "usage"})
-        (dom/label nil "Key")
-        (dom/select #js {:ref "key" :value "test2"} (product-keys))
-        (dom/label nil "Value")
-        (dom/input #js {:type "text" :ref "value"})))))
+    (render-state [this {:keys [viewchan]}]
+      (let [product (:editproduct app)]
+        (.log js/console "Prod " product)
+        (dom/div #js {:id "view" :className "view"}
+                (dom/h2 nil "New product")
+                (dom/label nil "Product id")
+                (dom/input #js {:type "text" :ref "productid"})
+                (dom/label nil "Name")
+                (dom/input #js {:type "text" :ref "name"})
+                (dom/label nil "Rollover date")
+                (dom/input #js {:type "text" :ref "rolloverdate"})
+                (dom/label nil "Rollover product")
+                (dom/input #js {:type "text" :ref "rolloverproduct"})
+                (dom/label nil "Services")
+                (dom/select #js {:size "10" :ref "services"})
+                (dom/label nil "Usage")
+                (dom/select #js {:size "10" :ref "usage"})
+                (dom/label nil "Key")
+                (dom/select #js {:ref "key" :value "test2"} (product-keys))
+                (dom/label nil "Value")
+                (dom/input #js {:type "text" :ref "value"}))))))
 
 (defn customer-keys []
   (list (dom/option #js {:id "1"} "test")
@@ -96,7 +100,7 @@
 (defn customer-view [app owner]
   (reify
     om/IRenderState
-    (render-state [this {:keys [new]}]
+    (render-state [this {:keys [viewchan]}]
       (dom/div #js {:id "view" :className "view"}
                (dom/h2 nil "Customers")
                (dom/label nil "Customer id")
@@ -127,7 +131,7 @@
 (defn accounts-view [app owner]
   (reify
     om/IRenderState
-    (render-state [this {:keys [new]}]
+    (render-state [this {:keys [viewchan]}]
       (dom/div #js {:id "view" :className "view"}
         (dom/h2 nil "Accounts")
         (dom/label nil "First Name")
@@ -144,7 +148,7 @@
 (defn services-view [app owner]
   (reify
     om/IRenderState
-    (render-state [this {:keys [new]}]
+    (render-state [this {:keys [viewchan]}]
       (dom/div #js {:id "view" :className "view"}
         (dom/h2 nil "Services")
         (dom/label nil "Service id")
@@ -159,7 +163,7 @@
 (defn pricebooks-view [app owner]
   (reify
     om/IRenderState
-    (render-state [this {:keys [new]}]
+    (render-state [this {:keys [viewchan]}]
       (dom/div #js {:id "view" :className "view"}
         (dom/h2 nil "Pricebooks")
         (dom/label nil "Name")
@@ -169,24 +173,30 @@
   (reify
     om/IInitState
     (init-state [_]
-      {:new (chan)})
+      {:viewchan (chan)})
     om/IWillMount
     (will-mount [_]
-      (let [new (om/get-state owner :new)]
+      (let [viewchan (om/get-state owner :viewchan)]
         (go (while true
-              (let [view (<! new)]
-                (.log js/console (str "log" view))
+              (let [view (<! viewchan)
+                    edit (when (map? view) (first (vals map)))
+                    view (if (map? view) (first (keys map)) view)]
+                (.log js/console (str "log " view edit))
+                (when edit
+                  (om/transact! app :editproduct
+                               (fn [x] edit)))
                 (om/transact! app :menu-point
                               (fn [x] view)))))))
     om/IRenderState
-    (render-state [this {:keys [new]}]
+    (render-state [this {:keys [viewchan]}]
       (cond
-       (= :products (:menu-point app)) (om/build products-view app {:init-state {:new new}})
+       (= :products (:menu-point app)) (om/build products-view app {:init-state {:viewchan viewchan}})
        (= :newproduct (:menu-point app)) (om/build new-product-view app)
-       (= :customers (:menu-point app)) (om/build customer-view app {:init-state {:new new}})
-       (= :accounts (:menu-point app)) (om/build accounts-view app {:init-state {:new new}})
-       (= :services (:menu-point app)) (om/build services-view app {:init-state {:new new}})
-       (= :pricebooks (:menu-point app)) (om/build pricebooks-view app {:init-state {:new new}})))))
+       (= :editproduct (:menu-point app)) (om/build new-product-view app {:state (:editproduct app)})
+       (= :customers (:menu-point app)) (om/build customer-view app {:init-state {:viewchan viewchan}})
+       (= :accounts (:menu-point app)) (om/build accounts-view app {:init-state {:viewchan viewchan}})
+       (= :services (:menu-point app)) (om/build services-view app {:init-state {:viewchan viewchan}})
+       (= :pricebooks (:menu-point app)) (om/build pricebooks-view app {:init-state {:viewchan viewchan}})))))
 
 (defn app-view [app owner]
   (reify
